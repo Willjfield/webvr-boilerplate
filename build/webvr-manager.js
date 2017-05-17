@@ -470,6 +470,7 @@ WebVRManager.prototype.setMode_ = function(mode) {
  * Main button was clicked.
  */
 WebVRManager.prototype.onFSClick_ = function() {
+  
   switch (this.mode) {
     case Modes.NORMAL:
       // TODO: Remove this hack if/when iOS gets real fullscreen mode.
