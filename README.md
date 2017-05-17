@@ -21,6 +21,10 @@ also available via npm. Easy install:
 
     npm install webvr-boilerplate
 
-##Setting Up Server
+## Setting Up Server
 
-Requesting permissions for the controller requires a server with SSL which can be done with [http-server]: https://www.npmjs.com/package/http-server using the -S flag. You will need to generate a new cert and key which can be done with [the following directions]: http://brianflove.com/2014/12/01/self-signed-ssl-certificate-on-mac-yosemite/ but you will need to rename the generated cert and key files to cert.pem and key.pem
+Requesting permissions for the controller requires a server with SSL which can be done with
+[http-server]: https://www.npmjs.com/package/http-server
+ using the -S flag. You will need to generate a new cert and key which can be done with 
+[the following directions]: http://brianflove.com/2014/12/01/self-signed-ssl-certificate-on-mac-yosemite/ 
+but you will need to rename the generated cert and key files to cert.pem and key.pem
