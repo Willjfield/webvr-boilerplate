@@ -18,7 +18,9 @@
     "type": "git",
     "url": "git+https://github.com/googlevr/webvr-boilerplate.git"
   },
-  "keywords": ["vr"],
+  "keywords": [
+    "vr"
+  ],
   "author": "Boris Smus <boris@smus.com>",
   "license": "Apache-2.0",
   "bugs": {
