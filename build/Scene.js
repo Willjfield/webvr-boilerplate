@@ -15,11 +15,16 @@ var vrButton;
 var plane;
 var uniforms;
 var speed = 0;
+var analyser;
+const planeResolution = 14;
+var renderer;
+var sound;
+
 function onLoad() {
 
   // Setup three.js WebGL renderer. Note: Antialiasing is a big performance hit.
   // Only enable it if you actually need to.
-  var renderer = new THREE.WebGLRenderer({antialias: true});
+  renderer = new THREE.WebGLRenderer({antialias: true});
   renderer.setPixelRatio(window.devicePixelRatio);
 
   // Append the canvas element created by the renderer to document body element.
@@ -42,27 +47,29 @@ function onLoad() {
 
   // Add a repeating grid as a skybox.
   var loader = new THREE.TextureLoader();
-  loader.load('img/box.png', onTextureLoaded);
+  loader.load('assets/box.png', onTextureLoaded);
 
   // Create 3D objects.
-  var geometry = new THREE.PlaneBufferGeometry( 100, 100, 64, 64 );
+  
+  var geometry = new THREE.PlaneGeometry( 100, 100, planeResolution, planeResolution );
   var vertex = document.getElementById('vertexShader').innerHTML;
   var fragment = document.getElementById('fragmentShader').innerHTML;
   uniforms = {
         u_speed: { type: "f", value: 1.0 },
-        u_x: { type: "f", value: 1.0 },
+        u_x: { type: "f", value: 0.0 },
         u_time: { type: "f", value: 1.0 },
     };
 
-  material = new THREE.ShaderMaterial({
-                vertexShader: vertex,
-                fragmentShader: fragment,
-                wireframe: true,
-                uniforms: uniforms
-        });
+  // material = new THREE.ShaderMaterial({
+  //               vertexShader: vertex,
+  //               fragmentShader: fragment,
+  //               wireframe: true,
+  //               uniforms: uniforms
+  //       });
+  material = new THREE.MeshBasicMaterial( {color: new THREE.Color( 0xff0088 ), wireframe:true} );
   plane = new THREE.Mesh( geometry, material );
   plane.rotation.x = -Math.PI/2;
-  plane.position.set(0, -5, -50);
+  plane.position.set(0, -10, -25);
 
   scene.add(plane);
 
@@ -85,46 +92,49 @@ function onLoad() {
   });
   vrButton.on('show', function() {
     document.getElementById('ui').style.display = 'inherit';
-    initDaydream();
+    //initDaydream();
+    sound.play();
   });
   document.getElementById('vr-button').appendChild(vrButton.domElement);
   document.getElementById('vr-button').addEventListener('click', function(){
-    initDaydream();
+    //initDaydream();
+    sound.play();
   });
 
   document.getElementById('magic-window').addEventListener('click', function() {
     vrButton.requestEnterFullscreen();
-    initDaydream();
+    initDesktop();
+    sound.play();
+    //initDaydream();
   });
+  loadAudio();
+  loadModels(2);
 }
 
 function onTextureLoaded(texture) {
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(boxSize, boxSize);
-
-  var geometry = new THREE.BoxGeometry(boxSize, boxSize, boxSize);
-  var material = new THREE.MeshBasicMaterial({
-    map: texture,
-    color: 0x01BE00,
-    side: THREE.BackSide
-  });
-
-  // Align the skybox to the floor (which is at y=0).
-  skybox = new THREE.Mesh(geometry, material);
-  skybox.position.y = boxSize/2;
-  //scene.add(skybox);
-
   // For high end VR devices like Vive and Oculus, take into account the stage
   // parameters provided.
   setupStage();
 }
 
-
-
+var frameNum = 0;
 // Request animation frame loop function
 function animate(timestamp) {
-  uniforms.u_time.value += speed*.2;
+  frameNum++;
+  uniforms.u_time.value += .01;
+  plane.geometry.verticesNeedUpdate = true;
+  
+  if(frameNum%5 === 0){
+    for(var v = 0; v<planeResolution+1; v++){
+      for(var i = planeResolution;i>0;i--){
+        plane.geometry.vertices[v+((planeResolution+1)*i)].z=plane.geometry.vertices[((planeResolution+1)-v)+((planeResolution+1)*(i-1))].z;
+      }
+      plane.geometry.vertices[v].z = 0;
+      plane.geometry.vertices[v].z=Math.pow(analyser.getFrequencyData()[v]*.01,3);
+      plane.geometry.vertices[planeResolution-v].z+=Math.pow(analyser.getFrequencyData()[v]*.01,3);
+    }
+  }
+
   var delta = Math.min(timestamp - lastRenderTime, 500);
   lastRenderTime = timestamp;
 
@@ -134,7 +144,7 @@ function animate(timestamp) {
   }
   // Render the scene.
   effect.render(scene, camera);
-
+  analyser.getFrequencyData();
   vrDisplay.requestAnimationFrame(animate);
 }
 
@@ -157,59 +167,68 @@ function setupStage() {
 
 window.addEventListener('load', onLoad);
 
-var axis = new THREE.Vector3();
-var quaternion = new THREE.Quaternion();
-var quaternionHome = new THREE.Quaternion();
+function initDesktop(){
+  controls = new THREE.OrbitControls( camera, renderer.domElement );
+  controls.enableZoom = false;
+}
 
-var initialised = false;
-var timeout = null;
+var analyser;
+function loadAudio(){
+  //Create an AudioListener and add it to the camera
+  var listener = new THREE.AudioListener();
+  camera.add( listener );
 
-function initDaydream(){
-        console.log('init daydream controller')
-        var controller = new DaydreamController();
-        controller.onStateChange( function ( state ) {
-         // console.log(JSON.stringify( state, null, '\t' ));
+  // create a global audio source
+  sound = new THREE.Audio( listener );
 
-          if ( cube !== undefined ) {
-            var angle = Math.sqrt( state.xOri * state.xOri + state.yOri * state.yOri + state.zOri * state.zOri );
-            if ( angle > 0 ) {
-              axis.set( state.xOri, state.yOri, state.zOri )
-              axis.multiplyScalar( 1 / angle );
-              quaternion.setFromAxisAngle( axis, angle );
-              if ( initialised === false ) {
-                quaternionHome.copy( quaternion );
-                quaternionHome.inverse();
-                initialised = true;
-              }
-            } else {
-              quaternion.set( 0, 0, 0, 1 );
-            }
-            if ( state.isHomeDown ) {
-              if ( timeout === null ) {
-                timeout = setTimeout( function () {
-                  quaternionHome.copy( quaternion );
-                  quaternionHome.inverse();
-                }, 1000 );
-              }
-            } else {
-              if ( timeout !== null ) {
-                clearTimeout( timeout );
-                timeout = null;
-              }
-            }
-            cube.quaternion.copy( quaternionHome );
-            cube.quaternion.multiply( quaternion );
-            // button1.material.emissive.g = state.isClickDown ? 0.5 : 0;
-            // button2.material.emissive.g = state.isAppDown ? 0.5 : 0;
-            // button3.material.emissive.g = state.isHomeDown ? 0.5 : 0;
-            // touch.position.x = ( state.xTouch * 2 - 1 ) / 1000;
-            // touch.position.y = - ( state.yTouch * 2 - 1 ) / 1000;
-            // touch.visible = state.xTouch > 0 && state.yTouch > 0;
-           
-            //console.log(uniforms.u_x)
-          }
-           speed = 1-state.yTouch;
-          uniforms.u_x.value = -state.yOri;
-        } );
-        controller.connect();
+  var audioLoader = new THREE.AudioLoader();
+
+  //Load a sound and set it as the Audio object's buffer
+  audioLoader.load( './assets/song.mp3', function( buffer ) {
+    sound.setBuffer( buffer );
+    sound.setLoop(true);
+    sound.setVolume(0.5);
+    
+  });
+
+  analyser = new THREE.AudioAnalyser( sound, 32 );
+  
+}
+var assets = [];
+var manager = new THREE.LoadingManager();
+        manager.onProgress = function ( item, loaded, total ) {
+
+          console.log( item, loaded, total );
+
+        };
+  var onProgress = function ( xhr ) {
+    if ( xhr.lengthComputable ) {
+      var percentComplete = xhr.loaded / xhr.total * 100;
+      console.log( Math.round(percentComplete, 2) + '% downloaded' );
+    }
+  };
+
+  var onError = function ( xhr ) {
+  };
+             
+  var loader = new THREE.OBJLoader( manager );
+
+function loadModels(numModels){
+  for (var i =0; i<numModels;i++){ 
+      (function(index){
+          loader.load( './assets/space_obj/' + index + '.obj', function ( object ) { 
+              //object.name=load_obj; 
+              object.traverse( function ( child ) {
+                if ( child instanceof THREE.Mesh ) {
+                  child.material = new THREE.MeshBasicMaterial( {color:0x8800ff, wireframe:true} );
+                }
+              });        
+              scene.add( object );  
+              object.scale.set( .1, .1, .1 );
+              object.position.z-=200;  
+              object.visible= false;  
+              assets.push(object);     
+          }, onProgress, onError ); 
+      })(i);
+  }
 }
